@@ -34,6 +34,16 @@ jobs:
             --exclude='.github/workflows/import-vela.yml' \
             "$temp_dir/vela/" ./
 
+          # Keep every upstream workflow file, but archive it outside the active
+          # .github/workflows directory. The runner token can push source files,
+          # but GitHub requires a separate 'workflows' App permission to install
+          # more active workflows from a Git push.
+          if [[ -d .github/workflows ]]; then
+            mkdir -p upstream-source/.github/workflows
+            find .github/workflows -maxdepth 1 -type f ! -name 'import-vela.yml' \
+              -exec mv -t upstream-source/.github/workflows/ {} +
+          fi
+
           cat > playground/index.html <<'HTML'
           <!doctype html>
           <html lang="en">
@@ -79,7 +89,7 @@ jobs:
 
           This repository is a source copy of the official [LuxAlgo/Vela](https://github.com/LuxAlgo/Vela) project at tag **v0.10.4** (upstream commit `12b624849c3c47666564373bc7cf405d093687d4`).
 
-          The complete upstream source tree is retained, including the chart core, native renderer, workspace, UI kit, documentation, tests, examples, workflows, original package lockfile, `LICENSE`, and `NOTICE`.
+          The complete upstream source tree is retained, including the chart core, native renderer, workspace, UI kit, documentation, tests, examples, original package lockfile, `LICENSE`, and `NOTICE`. The original upstream workflow definitions are preserved under `upstream-source/.github/workflows/` rather than activated in this copy; the only active workflow is the source-import workflow in `.github/workflows/`.
 
           ## Local development
 
@@ -98,6 +108,7 @@ jobs:
 
           - `playground/index.html` now mounts the upstream `VelaWorkspace` directly, so the root route opens the full workspace instead of the playground selection page.
           - `vercel.json` adds Vercel build and output settings.
+          - Upstream workflow definitions are retained under `upstream-source/.github/workflows/`; they are not activated automatically in this demo copy.
           - `.github/workflows/import-vela.yml` records the reproducible source-import workflow.
 
           ## License and attribution
@@ -125,4 +136,5 @@ jobs:
           git cat-file -e origin/main:src/workspace/VelaWorkspace.ts
           git cat-file -e origin/main:NOTICE
           git cat-file -e origin/main:vercel.json
-          echo "Verified official Vela source version $version, workspace, NOTICE and Vercel config."
+          git cat-file -e origin/main:upstream-source/.github/workflows/ci.yml
+          echo "Verified Vela source version $version, workspace, NOTICE, Vercel config and archived upstream workflows."
