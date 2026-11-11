@@ -1,0 +1,128 @@
+name: Import official Vela source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/import-vela.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vela-source-import
+  cancel-in-progress: false
+
+jobs:
+  import-vela:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+
+      - name: Import the exact upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          git clone --depth 1 --branch v0.10.4 https://github.com/LuxAlgo/Vela.git "$temp_dir/vela"
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github/workflows/import-vela.yml' \
+            "$temp_dir/vela/" ./
+
+          cat > playground/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+              <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1" />
+                  <meta name="theme-color" content="#131722" />
+                  <title>Vela — full workspace</title>
+                  <style>
+                      html, body {
+                          margin: 0;
+                          width: 100%;
+                          height: 100%;
+                          overflow: hidden;
+                          background: #131722;
+                      }
+                      #workspace {
+                          position: absolute;
+                          inset: 0;
+                          min-width: 0;
+                          min-height: 0;
+                      }
+                  </style>
+              </head>
+              <body>
+                  <div id="workspace"></div>
+                  <script type="module" src="./workspace.ts"></script>
+              </body>
+          </html>
+          HTML
+
+          cat > vercel.json <<'JSON'
+          {
+            "framework": "vite",
+            "installCommand": "npm ci",
+            "buildCommand": "npx vite build --config vite.config.ts",
+            "outputDirectory": "playground/dist"
+          }
+          JSON
+
+          cat > COPY-INFO.md <<'MD'
+          # Vela copy demo
+
+          This repository is a source copy of the official [LuxAlgo/Vela](https://github.com/LuxAlgo/Vela) project at tag **v0.10.4** (upstream commit `12b624849c3c47666564373bc7cf405d093687d4`).
+
+          The complete upstream source tree is retained, including the chart core, native renderer, workspace, UI kit, documentation, tests, examples, workflows, original package lockfile, `LICENSE`, and `NOTICE`.
+
+          ## Local development
+
+          ```bash
+          npm ci
+          npm run playground
+          ```
+
+          Open `http://localhost:5190/` for the full multi-chart workspace. The upstream `/widget.html` and `/workspace.html` examples remain available.
+
+          ## Vercel
+
+          Import this repository using the repository root. `vercel.json` runs `npm ci`, builds the workspace through Vite, and publishes `playground/dist`.
+
+          ## Changes in this copy
+
+          - `playground/index.html` now mounts the upstream `VelaWorkspace` directly, so the root route opens the full workspace instead of the playground selection page.
+          - `vercel.json` adds Vercel build and output settings.
+          - `.github/workflows/import-vela.yml` records the reproducible source-import workflow.
+
+          ## License and attribution
+
+          Vela is distributed under Apache-2.0. The upstream `LICENSE` and `NOTICE` files are preserved. The Vela attribution mark remains enabled on every chart, as required by the NOTICE.
+          MD
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The repository already matches the requested Vela snapshot."
+            exit 0
+          fi
+          git commit -m "Copy LuxAlgo Vela v0.10.4 with full workspace entry point"
+          git push origin HEAD:main
+
+      - name: Verify the pushed copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          version="$(git show origin/main:package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')"
+          test "$version" = "0.10.4"
+          git cat-file -e origin/main:src/workspace/VelaWorkspace.ts
+          git cat-file -e origin/main:NOTICE
+          git cat-file -e origin/main:vercel.json
+          echo "Verified official Vela source version $version, workspace, NOTICE and Vercel config."
