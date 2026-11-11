@@ -1,0 +1,6 @@
+{
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npx vite build --config vite.config.ts",
+  "outputDirectory": "playground/dist"
+}
